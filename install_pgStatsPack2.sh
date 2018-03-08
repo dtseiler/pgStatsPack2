@@ -6,10 +6,12 @@ PSQL="psql -qX --set ON_ERROR_STOP=on"
 
 install_stats () {
         set -e
+        # Create Schema and Tables
         $PSQL -d "${dbname}" -f "sql/pgstatspack2_create_schema.sql"
         $PSQL -d "${dbname}" -f "sql/pgstatspack2_create_tables.sql"
-        $PSQL -d "${dbname}" -f "sql/pgstatspack2_create_snap.sql"
-        $PSQL -d "${dbname}" -f "sql/pgstatspack2_delete_old_stats.sql"
+        # Create Functions
+        $PSQL -d "${dbname}" -f "sql/pgstatspack2_snap.sql"
+        $PSQL -d "${dbname}" -f "sql/pgstatspack2_delete_snap.sql"
         $PSQL -d "${dbname}" -f "sql/pgstatspack2_get_unused_indexes.sql"
         set +e
 }

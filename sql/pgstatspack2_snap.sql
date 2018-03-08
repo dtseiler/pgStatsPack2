@@ -6,6 +6,8 @@ SET client_min_messages TO error;
 -- Based on Glenn.Fawcett@Sun.com's snap procedure
 --
 
+SET search_path TO pgstatspack2,public;
+
 CREATE OR REPLACE FUNCTION pgstatspack2_snap ( description varchar(256) ) RETURNS bigint AS $$
 DECLARE
   now_dts TIMESTAMP;

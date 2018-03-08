@@ -1,6 +1,8 @@
 SET client_min_messages TO error;
 -- Function: get_unused_indexes(interval)
 
+SET search_path TO pgstatspack2,public;
+
 DROP FUNCTION if exists get_unused_indexes(interval);
 
 CREATE OR REPLACE FUNCTION get_unused_indexes(IN p_timespan interval)

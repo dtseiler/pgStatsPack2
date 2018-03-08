@@ -5,7 +5,7 @@ SET client_min_messages TO error;
 -- Based on Glenn.Fawcett@Sun.com's snap procedure
 --
 
-SET search_path TO pgstatspack2;
+SET search_path TO pgstatspack2,public;
 
 DROP TABLE if exists pgstatspack2_snap;
 CREATE TABLE pgstatspack2_snap
@@ -140,7 +140,8 @@ CREATE UNIQUE INDEX idx_pgstatspack2_names_name ON pgstatspack2_names(name);
 
 CREATE TABLE pgstatspack2_version
 (
-  version VARCHAR(10)
+  schema_version VARCHAR(10),
+  schema_date  TIMESTAMP WITH TIME ZONE
 );
 
 DROP SEQUENCE IF EXISTS pgstatspackid;
@@ -189,4 +190,4 @@ CREATE VIEW pgstatspack2_functions_v AS
     FROM pgstatspack2_functions
         JOIN pgstatspack2_names n1 ON n1.nameid=function_name_id;
 
-INSERT INTO pgstatspack2_version VALUES('0.1.0');
+INSERT INTO pgstatspack2_version VALUES('0.1.0', now());

@@ -124,7 +124,7 @@ create table pgstatspack2_bgwriter
   CONSTRAINT pgstatspack2_bgwriter_pk PRIMARY KEY (snapid)
 );
 
-CREATE SEQUENCE pgstatspacknameid
+CREATE SEQUENCE pgstatspack2_nameid
   INCREMENT 1
   MINVALUE 1
   MAXVALUE 2147483647
@@ -132,7 +132,7 @@ CREATE SEQUENCE pgstatspacknameid
   CACHE 1;
 
 CREATE TABLE pgstatspack2_names(
-  nameid    integer NOT NULL DEFAULT nextval('pgstatspacknameid'::text),
+  nameid    integer NOT NULL DEFAULT nextval('pgstatspack2.pgstatspack2_nameid'::text),
   name      text,
   CONSTRAINT pgstatspack2_names_pkey PRIMARY KEY (nameid)
 );
@@ -144,8 +144,8 @@ CREATE TABLE pgstatspack2_version
   schema_date  TIMESTAMP WITH TIME ZONE
 );
 
-DROP SEQUENCE IF EXISTS pgstatspackid;
-CREATE SEQUENCE pgstatspackid;
+DROP SEQUENCE IF EXISTS pgstatspack2_id;
+CREATE SEQUENCE pgstatspack2_id;
 
 CREATE OR REPLACE VIEW pgstatspack2_database_v AS 
     SELECT snapid, datid, name AS datname, numbackends, xact_commit, xact_rollback, blks_read, blks_hit

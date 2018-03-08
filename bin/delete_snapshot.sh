@@ -6,10 +6,10 @@ PSQL="psql -q"
 
 pushd `dirname $0`
 
-for dbname in `$PSQL -t -f "../sql/db_name.sql"`
+for dbname in `$PSQL -d postgres -t -f "../sql/get_db_names.sql"`
 do
 	echo "Results for database ${dbname}"
-	$PSQL -d "${dbname}" -c "select pgstatspack_delete_snap ();"
+	$PSQL -d "${dbname}" -c "select pgstatspack2.pgstatspack2_delete_snap ();"
 	echo ""
 	echo ""
 done 

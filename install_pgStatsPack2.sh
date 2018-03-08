@@ -24,12 +24,12 @@ do
                 echo "Installing language plpgsql for database ${dbname}"
                 $PSQL -d "${dbname}" -c "create language plpgsql;"
         fi
-        x=$($PSQL -t  -d "${dbname}" -f "sql/pgstatspack2_exists.sql")
+        x=$($PSQL -tA  -d "${dbname}" -f "sql/pgstatspack2_exists.sql")
         if [ $x -eq "0" ]
         then
                 echo "Installing Statistics Package for database ${dbname}"
                 install_stats
-        elif [ $x -lt "6" ]
+        elif [ $x -lt "8" ]
         then
                 echo "Previous install of statisics package was incomplete. Reinstalling Stats for database ${dbname}"
                 install_stats

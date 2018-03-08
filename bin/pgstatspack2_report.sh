@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #set -x
-# pgstatspack report
+# pgstatspack2 report
 # version 2.3
 # initially by frits hoogland
 # enhanced by keith pierno
@@ -22,7 +22,7 @@ pushd `dirname $0`
 help_msg (){
 	echo ""
 	echo "Usage:"
-	echo "	pgstatspack_report.sh [-u username] [-d database] [-f filename] [-h]"
+	echo "	pgstatspack2_report.sh [-u username] [-d database] [-f filename] [-h]"
 	echo "	Generates a statspack style report for a given postgres database"
 	echo ""
 	echo "	-u username	specifies the database user to connect to the database with"
@@ -34,8 +34,8 @@ help_msg (){
 }
 
 install_stats (){
-	$PSQL -U $1 -d $2 -c "\i ../sql/pgstatspack_create_tables.sql"
-	$PSQL -U $1 -d $2 -c "\i ../sql/pgstatspack_create_snap.sql"
+	$PSQL -U $1 -d $2 -c "\i ../sql/pgstatspack2_create_tables.sql"
+	$PSQL -U $1 -d $2 -c "\i ../sql/pgstatspack2_snap.sql"
 	echo ""
 	echo "Statistics package install for database $2"
 	echo "You need to create at least 2 snapshots before running this report."
@@ -72,7 +72,7 @@ if [ $PGDB"x" == "x" ]
 then
 	array_index=1
 	valid_selection=0
-	for i in `$PSQL -t -U $PGUSER -c "\i ../sql/db_name.sql"`
+	for i in `$PSQL -t -U $PGUSER -f "../sql/get_db_names.sql"`
 	do
 		db_array[$array_index]=$i
 		array_index=`expr $array_index + 1`
@@ -107,9 +107,10 @@ then
 fi
 
 # validate that statspack tables exist for the given database and the user can login
-x=`$PSQL -t -U $PGUSER -d $PGDB -c "\i ../sql/pgstats_exist.sql"`
+x=$($PSQL -tA -U $PGUSER -d $PGDB -f "../sql/pgstatspack2_exists.sql")
 if [ $x -eq "0" ]
 then
+	echo "x = $x"
 	echo "The statistics gathering package does not exist for the database: $PGDB"
 	echo ""
 	echo "Would you like to install the statistics package for $PGDB ? [y|n] "
@@ -144,7 +145,7 @@ fi
 # generate stats report
 
 $PSQL --user $PGUSER --dbname $PGDB --quiet --command "
-select * from pgstatspack_snap order by snapid desc; 
+select * from pgstatspack2.pgstatspack2_snap order by snapid desc; 
 "
 
 printf "Enter start snapshot id : "
@@ -166,15 +167,15 @@ printf "########################################################################
 printf "Snapshot information\n" | tee -a $FILENAME
 printf "Begin snapshot : \n" | tee -a $FILENAME
 $PSQL --user $PGUSER --dbname $PGDB --quiet --command "
-select b.snapid, b.ts, b.description from pgstatspack_snap b where b.snapid=$STARTSNAP;
+select b.snapid, b.ts, b.description from pgstatspack2.pgstatspack2_snap b where b.snapid=$STARTSNAP;
 " | tee -a $FILENAME
 printf "End snapshot   :\n" | tee -a $FILENAME
 $PSQL --user $PGUSER --dbname $PGDB --quiet --command "
-select e.snapid, e.ts, e.description from pgstatspack_snap e where e.snapid=$STOPSNAP;
+select e.snapid, e.ts, e.description from pgstatspack2.pgstatspack2_snap e where e.snapid=$STOPSNAP;
 " | tee -a $FILENAME
 printf "Seconds in snapshot: " | tee -a $FILENAME
 $PSQL --user $PGUSER --dbname $PGDB --quiet --tuples-only --command "
-select EXTRACT(EPOCH FROM (e.ts-b.ts)) from pgstatspack_snap b, pgstatspack_snap e where b.snapid=$STARTSNAP and e.snapid=$STOPSNAP;
+select EXTRACT(EPOCH FROM (e.ts-b.ts)) from pgstatspack2.pgstatspack2_snap b, pgstatspack2.pgstatspack2_snap e where b.snapid=$STARTSNAP and e.snapid=$STOPSNAP;
 " | tee -a $FILENAME
 
 printf "\nDatabase version\n" | tee -a $FILENAME
@@ -191,14 +192,14 @@ printf "\nDatabase statistics\n" | tee -a $FILENAME
 $PSQL --user $PGUSER --dbname $PGDB --quiet --command "
 SELECT
 	a.datname as database,
-	round(CAST ( ((b.xact_commit-a.xact_commit)/(select EXTRACT(EPOCH FROM (d.ts-c.ts)) from pgstatspack_snap c, pgstatspack_snap d where c.snapid=$STARTSNAP and d.snapid=$STOPSNAP)) AS numeric) ,2) as tps,
+	round(CAST ( ((b.xact_commit-a.xact_commit)/(select EXTRACT(EPOCH FROM (d.ts-c.ts)) from pgstatspack2.pgstatspack2_snap c, pgstatspack2.pgstatspack2_snap d where c.snapid=$STARTSNAP and d.snapid=$STOPSNAP)) AS numeric) ,2) as tps,
 	round(CAST ( (100*(b.blks_hit-a.blks_hit)/((b.blks_read-a.blks_read)+(b.blks_hit-a.blks_hit+1))) AS numeric) ,2) as hitrate,
-	round(CAST ( (((b.blks_read-a.blks_read)+(b.blks_hit-a.blks_hit))/(select EXTRACT(EPOCH FROM (d.ts-c.ts)) from pgstatspack_snap c, pgstatspack_snap d where c.snapid=$STARTSNAP and d.snapid=$STOPSNAP)) AS numeric) ,2) as lio_ps,
-	round(CAST ( ((b.blks_read-a.blks_read)/(select EXTRACT(EPOCH FROM (d.ts-c.ts)) from pgstatspack_snap c, pgstatspack_snap d where c.snapid=$STARTSNAP and d.snapid=$STOPSNAP)) as numeric),2) as pio_ps,
-	round(CAST ( ((b.xact_rollback-a.xact_rollback)/(select EXTRACT(EPOCH FROM (d.ts-c.ts)) from pgstatspack_snap c, pgstatspack_snap d where c.snapid=$STARTSNAP and d.snapid=$STOPSNAP)) as numeric) ,2) as rollbk_ps
+	round(CAST ( (((b.blks_read-a.blks_read)+(b.blks_hit-a.blks_hit))/(select EXTRACT(EPOCH FROM (d.ts-c.ts)) from pgstatspack2.pgstatspack2_snap c, pgstatspack2.pgstatspack2_snap d where c.snapid=$STARTSNAP and d.snapid=$STOPSNAP)) AS numeric) ,2) as lio_ps,
+	round(CAST ( ((b.blks_read-a.blks_read)/(select EXTRACT(EPOCH FROM (d.ts-c.ts)) from pgstatspack2.pgstatspack2_snap c, pgstatspack2.pgstatspack2_snap d where c.snapid=$STARTSNAP and d.snapid=$STOPSNAP)) as numeric),2) as pio_ps,
+	round(CAST ( ((b.xact_rollback-a.xact_rollback)/(select EXTRACT(EPOCH FROM (d.ts-c.ts)) from pgstatspack2.pgstatspack2_snap c, pgstatspack2.pgstatspack2_snap d where c.snapid=$STARTSNAP and d.snapid=$STOPSNAP)) as numeric) ,2) as rollbk_ps
 FROM
-	pgstatspack_database_v a,
-	pgstatspack_database_v b
+	pgstatspack2.pgstatspack2_database_v a,
+	pgstatspack2.pgstatspack2_database_v b
 WHERE
 	a.snapid=$STARTSNAP
 AND	b.snapid=$STOPSNAP
@@ -215,8 +216,8 @@ SELECT
 	SUM(((b.n_tup_upd-a.n_tup_upd)+(b.n_tup_upd-a.n_tup_upd))) as tup_upd,
 	SUM(((b.n_tup_del-a.n_tup_del)+(b.n_tup_del-a.n_tup_del))) as n_tup_del
 FROM
-	pgstatspack_tables_v a
-	join pgstatspack_tables_v b on a.table_name=b.table_name
+	pgstatspack2.pgstatspack2_tables_v a
+	join pgstatspack2.pgstatspack2_tables_v b on a.table_name=b.table_name
 WHERE	a.snapid=$STARTSNAP
 AND 	b.snapid=$STOPSNAP
 AND	((b.seq_tup_read is not null) and (b.idx_tup_fetch is not null))
@@ -231,8 +232,8 @@ SELECT
         b.tbl_size-a.tbl_size as table_growth,
         b.idx_size-a.idx_size as index_growth
 FROM
-	pgstatspack_tables_v a
-	join pgstatspack_tables_v b on a.table_name=b.table_name
+	pgstatspack2.pgstatspack2_tables_v a
+	join pgstatspack2.pgstatspack2_tables_v b on a.table_name=b.table_name
 WHERE 
 	a.snapid=$STARTSNAP
 AND	b.snapid=$STOPSNAP
@@ -250,8 +251,8 @@ SELECT
 	100*(b.seq_tup_read-a.seq_tup_read)/((b.seq_tup_read-a.seq_tup_read)+(b.idx_tup_fetch-a.idx_tup_fetch)) as table_read_pct,
 	100*(b.idx_tup_fetch-a.idx_tup_fetch)/((b.seq_tup_read-a.seq_tup_read)+(b.idx_tup_fetch-a.idx_tup_fetch)) as index_read_pct
 FROM
-	pgstatspack_tables_v a
-	join pgstatspack_tables_v b  on a.table_name=b.table_name
+	pgstatspack2.pgstatspack2_tables_v a
+	join pgstatspack2.pgstatspack2_tables_v b  on a.table_name=b.table_name
 WHERE 
 	a.snapid=$STARTSNAP
 AND	b.snapid=$STOPSNAP
@@ -271,8 +272,8 @@ SELECT
 	a.table_name as table,
 	(b.n_tup_ins-a.n_tup_ins) as table_inserts
 FROM
-	pgstatspack_tables_v a
-	join pgstatspack_tables_v b  on a.table_name=b.table_name
+	pgstatspack2.pgstatspack2_tables_v a
+	join pgstatspack2.pgstatspack2_tables_v b  on a.table_name=b.table_name
 WHERE 
 	a.snapid=$STARTSNAP
 AND	b.snapid=$STOPSNAP
@@ -289,8 +290,8 @@ SELECT
 	a.table_name as table,
 	(b.n_tup_upd-a.n_tup_upd) as table_updates
 FROM
-	pgstatspack_tables_v a
-	join pgstatspack_tables_v b  on a.table_name=b.table_name
+	pgstatspack2.pgstatspack2_tables_v a
+	join pgstatspack2.pgstatspack2_tables_v b  on a.table_name=b.table_name
 WHERE 
 	a.snapid=$STARTSNAP
 AND	b.snapid=$STOPSNAP
@@ -308,8 +309,8 @@ SELECT
 	a.table_name as table,
 	(b.n_tup_del-a.n_tup_del) as table_deletes
 FROM
-	pgstatspack_tables_v a
-	join pgstatspack_tables_v b  on a.table_name=b.table_name
+	pgstatspack2.pgstatspack2_tables_v a
+	join pgstatspack2.pgstatspack2_tables_v b  on a.table_name=b.table_name
 WHERE 
 	a.snapid=$STARTSNAP
 AND	b.snapid=$STOPSNAP
@@ -332,8 +333,8 @@ SELECT
 	(b.idx_blks_read-a.idx_blks_read) as idx_read,
 	(b.idx_blks_hit-a.idx_blks_hit) as idx_hit
 FROM
-	pgstatspack_tables_v a
-	join pgstatspack_tables_v b  on a.table_name=b.table_name
+	pgstatspack2.pgstatspack2_tables_v a
+	join pgstatspack2.pgstatspack2_tables_v b  on a.table_name=b.table_name
 WHERE 
 	a.snapid=$STARTSNAP
 AND	b.snapid=$STOPSNAP
@@ -358,8 +359,8 @@ SELECT
 	(b.idx_blks_read-a.idx_blks_read) as idx_blks_read,
 	(b.idx_blks_hit-a.idx_blks_hit) as idx_blks_hit
 FROM
-	pgstatspack_indexes_v a
-	join pgstatspack_indexes_v b on a.index_name=b.index_name and a.table_name=b.table_name
+	pgstatspack2.pgstatspack2_indexes_v a
+	join pgstatspack2.pgstatspack2_indexes_v b on a.index_name=b.index_name and a.table_name=b.table_name
 WHERE
 	a.snapid=$STARTSNAP
 AND	b.snapid=$STOPSNAP
@@ -377,8 +378,8 @@ SELECT
 	(b.seq_blks_read-a.seq_blks_read) as blks_read,
         (b.seq_blks_hit-a.seq_blks_hit) as blks_hit
 FROM
-	pgstatspack_sequences_v a
-	join pgstatspack_sequences_v b on a.sequence_name=b.sequence_name
+	pgstatspack2.pgstatspack2_sequences_v a
+	join pgstatspack2.pgstatspack2_sequences_v b on a.sequence_name=b.sequence_name
 WHERE
 	a.snapid=$STARTSNAP
 AND	b.snapid=$STOPSNAP
@@ -398,15 +399,15 @@ SELECT
 	b.user_name as user,
 	b.query as query
 FROM
-	pgstatspack_statements_v a
-	right join pgstatspack_statements_v b on a.user_name=b.user_name and a.query=b.query,
+	pgstatspack2.pgstatspack2_statements_v a
+	right join pgstatspack2.pgstatspack2_statements_v b on a.user_name=b.user_name and a.query=b.query,
 	(
 	 select
 	  sum(sb.calls-sa.calls) as calls,
 	  sum(sb.total_time-sa.total_time) as total_time,
 	  sum(sb.rows-sa.rows) as rows 
-	 from pgstatspack_statements sa
-	 right join pgstatspack_statements sb on sa.user_name_id=sb.user_name_id and sa.query_id=sb.query_id
+	 from pgstatspack2.pgstatspack2_statements sa
+	 right join pgstatspack2.pgstatspack2_statements sb on sa.user_name_id=sb.user_name_id and sa.query_id=sb.query_id
 	) as sum
 WHERE
 	a.snapid = $STARTSNAP and
@@ -424,8 +425,8 @@ SELECT
 	(b.total_time-coalesce(a.total_time,0))::numeric(10,3) as total_time,
 	(b.self_time-coalesce(a.self_time,0))::numeric(10,3) as self_time
 FROM
-	pgstatspack_functions_v a
-	right join pgstatspack_functions_v b on a.funcid=b.funcid
+	pgstatspack2.pgstatspack2_functions_v a
+	right join pgstatspack2.pgstatspack2_functions_v b on a.funcid=b.funcid
 WHERE
 	a.snapid = $STARTSNAP and
 	b.snapid = $STOPSNAP
@@ -444,8 +445,8 @@ SELECT
 	b.buffers_backend-a.buffers_backend as buffers_backend,
 	b.buffers_alloc-a.buffers_alloc as buffers_alloc
 FROM
-	pgstatspack_bgwriter a,
-	pgstatspack_bgwriter b
+	pgstatspack2.pgstatspack2_bgwriter a,
+	pgstatspack2.pgstatspack2_bgwriter b
 WHERE
 	a.snapid=$STARTSNAP
 AND     b.snapid=$STOPSNAP;
@@ -462,10 +463,10 @@ SELECT
     ((((b.buffers_checkpoint-a.buffers_checkpoint)+(b.buffers_clean-a.buffers_clean)+(b.buffers_backend-a.buffers_backend))/nullif(extract(epoch from (sb.ts-sa.ts)),0))*8/1024)::numeric(10,3)||' MB/s' as total_writes,
     (((b.buffers_checkpoint-a.buffers_checkpoint)/nullif((b.checkpoints_timed-a.checkpoints_timed)+(b.checkpoints_req-a.checkpoints_req),0)*8/1024)::numeric(10,3))||' MB' as avg_checkpoint_write
 FROM
-        pgstatspack_bgwriter a,
-        pgstatspack_bgwriter b,
-        pgstatspack_snap sa,
-        pgstatspack_snap sb
+        pgstatspack2.pgstatspack2_bgwriter a,
+        pgstatspack2.pgstatspack2_bgwriter b,
+        pgstatspack2.pgstatspack2_snap sa,
+        pgstatspack2.pgstatspack2_snap sb
 WHERE
         a.snapid=$STARTSNAP
 AND     b.snapid=$STOPSNAP
@@ -481,9 +482,9 @@ SELECT
 	so.setting as stop_setting,
 	sa.source as source
 FROM
-	pgstatspack_settings_v so
+	pgstatspack2.pgstatspack2_settings_v so
 LEFT OUTER JOIN 
-	pgstatspack_settings_v sa ON ( so.name=sa.name )
+	pgstatspack2.pgstatspack2_settings_v sa ON ( so.name=sa.name )
 WHERE
 	sa.snapid=$STARTSNAP
 AND	so.snapid=$STOPSNAP;

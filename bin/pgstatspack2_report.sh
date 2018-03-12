@@ -14,7 +14,7 @@
 
 # begin enhancements
 
-PSQL="psql"
+PSQL="psql -X"
 
 pushd `dirname $0`
 

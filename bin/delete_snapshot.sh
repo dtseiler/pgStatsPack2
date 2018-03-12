@@ -2,7 +2,7 @@
 
 #db call to get database name
 
-PSQL="psql -q"
+PSQL="psql -qX"
 
 pushd `dirname $0`
 
